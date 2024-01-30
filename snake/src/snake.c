@@ -42,6 +42,7 @@ void end_game(int* cells, size_t width, size_t height, snake_t* snake_p) {
     // Game over!
 
     // Free any memory we've taken
+    free(cells);
     teardown(cells, snake_p);
 
     // ****************** UNCOMMENT THIS CODE IN PART 3B ***********************
@@ -127,7 +128,15 @@ int main(int argc, char** argv) {
         "   __________/ /    \n"
         "-=:___________/\n");
 
-    // initialize_window(width, height);
+    initialize_window(width, height);
     // TODO: implement the game loop here (Part 1A)!
-    // end_game(cells, width, height, &snake);
+    while (!g_game_over) {
+        usleep(100000);
+
+        update(cells, width, height, NULL, INPUT_NONE, 0);
+
+        render_game(cells, width, height);
+    }
+
+    end_game(cells, width, height, &snake);
 }
