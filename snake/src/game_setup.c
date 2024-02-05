@@ -91,16 +91,40 @@ enum board_init_status initialize_game(int** cells_p, size_t* width_p,
                                        size_t* height_p, snake_t* snake_p,
                                        char* board_rep) {
     // TODO: implement!
-    initialize_default_board(cells_p, width_p, height_p);
+    enum board_init_status status;
+
+    if (board_rep == NULL) {
+        initialize_default_board(cells_p, width_p, height_p);
+        status = INIT_SUCCESS;
+        g_snake_head_row = 2;
+        g_snake_head_col = 2;
+    } else {
+        status = decompress_board_str(cells_p, width_p, height_p, snake_p, board_rep);
+    }
 
     g_game_over = 0;
     g_score = 0;
 
-    g_snake_head_row = 2;
-    g_snake_head_col = 2;
-    g_snake_direction = INPUT_NONE;
+    g_snake_direction = INPUT_RIGHT;
 
-    return INIT_SUCCESS;
+    place_food(*cells_p, *width_p, *height_p);
+
+    return status;
+}
+
+size_t get_index(int row, int col, size_t width) {
+    return row * width + col;
+}
+
+int parse_int(char **str) {
+    int result = 0;
+
+    while (**str >= '0' && **str <= '9') {
+        result = result * 10 + (**str - '0');
+        (*str)++;
+    }
+
+    return result;
 }
 
 /** Takes in a string `compressed` and initializes values pointed to by
@@ -119,6 +143,79 @@ enum board_init_status initialize_game(int** cells_p, size_t* width_p,
 enum board_init_status decompress_board_str(int** cells_p, size_t* width_p,
                                             size_t* height_p, snake_t* snake_p,
                                             char* compressed) {
-    // TODO: implement!
-    return INIT_UNIMPLEMENTED;
+    char* current = compressed + 1;
+
+    int given_rows = parse_int(&current);
+    current++; 
+    int given_cols = parse_int(&current);
+    current++; 
+
+    int* cells = malloc(given_cols * given_rows * sizeof(int));
+    *cells_p = cells;
+
+    *width_p = given_cols;
+    *height_p = given_rows;
+
+    int snake_count = 0;
+
+    for (int row = 0; row < given_rows; row++) {
+        if (!current || *current == '\0') {
+            return INIT_ERR_INCORRECT_DIMENSIONS;
+        }
+
+        int col = 0; 
+
+        while (*current && *current != '|') {
+            if (col >= given_cols) {
+                return INIT_ERR_INCORRECT_DIMENSIONS;
+            }
+            char cellType = *current++;
+
+            int count = parse_int(&current);
+            if (count > given_cols - col) {
+                return INIT_ERR_INCORRECT_DIMENSIONS;
+            }
+
+            if (cellType != 'E' && cellType != 'W' && cellType != 'S' && cellType != 'G' && cellType != 'O') {
+                return INIT_ERR_BAD_CHAR;
+            }
+            if (cellType == 'S') snake_count += count;
+
+            for (int i = 0; i < count; i++) {
+                int cell_index = get_index(row, col, *width_p);
+                if (cellType == 'W') {
+                    (*cells_p)[cell_index] = FLAG_WALL;
+                } else if (cellType == 'S') {
+                    (*cells_p)[cell_index] = FLAG_SNAKE;
+                    g_snake_head_col = col;
+                    g_snake_head_row = row;
+                } else if (cellType == 'G') {
+                    (*cells_p)[cell_index] = FLAG_GRASS;
+                } else if (cellType == 'O') {
+                    (*cells_p)[cell_index] = FLAG_FOOD;
+                } else {
+                    (*cells_p)[cell_index] = PLAIN_CELL;
+                }
+                col++;
+            }
+        }
+        if (col != given_cols) {
+            return INIT_ERR_INCORRECT_DIMENSIONS;
+        }
+        if (*current == '|') current++; 
+    }
+
+    if (*current != '\0') {
+        return INIT_ERR_INCORRECT_DIMENSIONS;
+    }
+
+    if (snake_count != 1) {
+        return INIT_ERR_WRONG_SNAKE_NUM;
+    }
+    return INIT_SUCCESS;
 }
+
+
+
+
+    

@@ -131,11 +131,13 @@ int main(int argc, char** argv) {
     initialize_window(width, height);
     // TODO: implement the game loop here (Part 1A)!
     while (!g_game_over) {
-        usleep(100000);
+        enum input_key input = get_input();
 
-        update(cells, width, height, NULL, INPUT_NONE, 0);
+        update(cells, width, height, NULL, input, 0);
 
         render_game(cells, width, height);
+
+        usleep(100000);
     }
 
     end_game(cells, width, height, &snake);

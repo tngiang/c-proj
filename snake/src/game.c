@@ -11,6 +11,11 @@
 #include "mbstrings.h"
 #include "common.h"
 
+
+void handle_position(int prev_head, int new_head) {
+    
+}
+
 /** Updates the game by a single step, and modifies the game information
  * accordingly. Arguments:
  *  - cells: a pointer to the first integer in an array of integers representing
@@ -32,7 +37,177 @@ void update(int* cells, size_t width, size_t height, snake_t* snake_p,
     // walls, so it does not handle the case where a snake runs off the board.
 
     // TODO: implement!
+    int new_head;
+    
+    if (input == INPUT_UP) {
+        g_snake_direction = INPUT_UP;
+    } else if (input == INPUT_DOWN) {
+        g_snake_direction = INPUT_DOWN;
+    } else if (input == INPUT_LEFT) {
+        g_snake_direction = INPUT_LEFT;
+    } else if (input == INPUT_RIGHT){
+        g_snake_direction = INPUT_RIGHT;
+    } 
+
+    if (g_snake_direction == INPUT_UP) {
+        new_head = (g_snake_head_row - 1) * width + g_snake_head_col;
+        if (cells[new_head] == FLAG_WALL) {
+            g_game_over = 1;
+        }
+        else if (cells[new_head] & FLAG_FOOD) {
+            g_snake_head_row--;
+            int prev_head = (g_snake_head_row + 1) * width + g_snake_head_col;
+
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+
+            g_score++;
+            place_food(cells, width, height);
+
+        }
+        else {
+            g_snake_head_row--;
+            int prev_head = (g_snake_head_row + 1) * width + g_snake_head_col;
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+        } 
+    }
+    if (g_snake_direction == INPUT_DOWN) {
+        new_head = (g_snake_head_row + 1) * width + g_snake_head_col;
+        if (cells[new_head] == FLAG_WALL) {
+            g_game_over = 1;
+        }
+        else if (cells[new_head] & FLAG_FOOD) {
+            g_snake_head_row++;
+            int prev_head = (g_snake_head_row - 1) * width + g_snake_head_col;
+
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+
+            g_score++;
+            place_food(cells, width, height);
+
+        }
+        else {
+            g_snake_head_row++;
+            int prev_head = (g_snake_head_row - 1) * width + g_snake_head_col;
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+        } 
+    }
+    if (g_snake_direction == INPUT_LEFT) {
+        new_head = g_snake_head_row * width + (g_snake_head_col - 1);
+        if (cells[new_head] == FLAG_WALL) {
+            g_game_over = 1;
+        }
+        else if (cells[new_head] & FLAG_FOOD) {
+            g_snake_head_col--;
+            int prev_head = g_snake_head_row * width + (g_snake_head_col + 1);
+
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+
+            g_score++;
+            place_food(cells, width, height);
+
+        }
+        else {
+            g_snake_head_col--;
+            int prev_head = g_snake_head_row * width + (g_snake_head_col + 1);
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+        } 
+    }
+    if (g_snake_direction == INPUT_RIGHT) {
+        new_head = g_snake_head_row * width + (g_snake_head_col + 1);
+        if (cells[new_head] == FLAG_WALL) {
+            g_game_over = 1;
+        }
+        else if (cells[new_head] & FLAG_FOOD) {
+            g_snake_head_col++;
+            int prev_head = g_snake_head_row * width + (g_snake_head_col - 1);
+
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+
+            g_score++;
+            place_food(cells, width, height);
+        }
+        else {
+            g_snake_head_col++;
+            int prev_head = g_snake_head_row * width + (g_snake_head_col - 1);
+            if (!(cells[prev_head] & FLAG_GRASS)) {
+                cells[prev_head] = PLAIN_CELL;
+            } else {
+                cells[prev_head] = FLAG_GRASS;
+            }
+            if(cells[new_head] & FLAG_GRASS) {
+                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_head] = FLAG_SNAKE;
+            }
+        } 
+    }
 }
+
+    
+
 
 /** Sets a random space on the given board to food.
  * Arguments:
