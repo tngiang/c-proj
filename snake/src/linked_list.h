@@ -25,3 +25,4 @@ void* remove_first(node_t** head_list);
 void* remove_last(node_t** head_list);
 
 #endif
+

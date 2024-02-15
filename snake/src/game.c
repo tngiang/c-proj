@@ -12,9 +12,6 @@
 #include "common.h"
 
 
-void handle_position(int prev_head, int new_head) {
-    
-}
 
 /** Updates the game by a single step, and modifies the game information
  * accordingly. Arguments:
@@ -36,174 +33,120 @@ void update(int* cells, size_t width, size_t height, snake_t* snake_p,
     // increases by 1. This function assumes that the board is surrounded by
     // walls, so it does not handle the case where a snake runs off the board.
 
-    // TODO: implement!
-    int new_head;
-    
+
+    if (g_game_over) {
+        return;
+    }
+
+    int cur_loc = *(int*)get_first(snake_p->snake_position);
+    int new_loc = cur_loc;
+
+    if (input == INPUT_NONE) {
+        input = snake_p->direction;
+    }
     if (input == INPUT_UP) {
-        g_snake_direction = INPUT_UP;
+        if (snake_p->direction == INPUT_DOWN) {
+            new_loc = new_loc + width;
+        } else {
+            new_loc = new_loc - width;
+            snake_p->direction = INPUT_UP;
+        }
     } else if (input == INPUT_DOWN) {
-        g_snake_direction = INPUT_DOWN;
-    } else if (input == INPUT_LEFT) {
-        g_snake_direction = INPUT_LEFT;
-    } else if (input == INPUT_RIGHT){
-        g_snake_direction = INPUT_RIGHT;
-    } 
-
-    if (g_snake_direction == INPUT_UP) {
-        new_head = (g_snake_head_row - 1) * width + g_snake_head_col;
-        if (cells[new_head] == FLAG_WALL) {
-            g_game_over = 1;
-        }
-        else if (cells[new_head] & FLAG_FOOD) {
-            g_snake_head_row--;
-            int prev_head = (g_snake_head_row + 1) * width + g_snake_head_col;
-
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-
-            g_score++;
-            place_food(cells, width, height);
-
-        }
-        else {
-            g_snake_head_row--;
-            int prev_head = (g_snake_head_row + 1) * width + g_snake_head_col;
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
+        if (snake_p->direction == INPUT_UP) {
+            new_loc = new_loc - width;
+        } else {
+            new_loc = new_loc + width;
+            snake_p->direction = INPUT_DOWN;
         } 
+    } else if (input == INPUT_LEFT){
+        if (snake_p->direction == INPUT_RIGHT) {
+            new_loc = new_loc + 1;
+        } else {
+            new_loc = new_loc - 1;
+            snake_p->direction = INPUT_LEFT;
+        }
+    } else if (input == INPUT_RIGHT) {
+        if (snake_p->direction == INPUT_LEFT) {
+            new_loc = new_loc - 1;
+        } else {
+            new_loc = new_loc + 1;
+            snake_p->direction = INPUT_RIGHT;
+        }
+    } else if (input == INPUT_NONE) {
+        new_loc = new_loc + 1;
+        snake_p->direction = INPUT_NONE;
     }
-    if (g_snake_direction == INPUT_DOWN) {
-        new_head = (g_snake_head_row + 1) * width + g_snake_head_col;
-        if (cells[new_head] == FLAG_WALL) {
-            g_game_over = 1;
-        }
-        else if (cells[new_head] & FLAG_FOOD) {
-            g_snake_head_row++;
-            int prev_head = (g_snake_head_row - 1) * width + g_snake_head_col;
-
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-
-            g_score++;
-            place_food(cells, width, height);
-
-        }
-        else {
-            g_snake_head_row++;
-            int prev_head = (g_snake_head_row - 1) * width + g_snake_head_col;
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-        } 
+    if(cells[new_loc] == FLAG_WALL) {
+        g_game_over = 1;
+        return;
     }
-    if (g_snake_direction == INPUT_LEFT) {
-        new_head = g_snake_head_row * width + (g_snake_head_col - 1);
-        if (cells[new_head] == FLAG_WALL) {
-            g_game_over = 1;
+    else if (cells[new_loc] & FLAG_FOOD) {
+        if (!growing) {
+            void* removed = remove_last(&(snake_p->snake_position));
+            int removed_loc = *(int*) removed;
+            if (cells[removed_loc] & FLAG_GRASS) {
+                cells[removed_loc] = FLAG_GRASS;
+            } else {
+                cells[removed_loc] = PLAIN_CELL;
+            }
+            free(removed);
         }
-        else if (cells[new_head] & FLAG_FOOD) {
-            g_snake_head_col--;
-            int prev_head = g_snake_head_row * width + (g_snake_head_col + 1);
-
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-
-            g_score++;
-            place_food(cells, width, height);
-
+        insert_first(&(snake_p->snake_position), &new_loc, sizeof(int));
+        if (cells[new_loc] & FLAG_GRASS) {
+            cells[new_loc] = FLAG_GRASS | FLAG_SNAKE;
+        } else {
+            cells[new_loc] = FLAG_SNAKE;
         }
-        else {
-            g_snake_head_col--;
-            int prev_head = g_snake_head_row * width + (g_snake_head_col + 1);
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
+        g_score++;
+        place_food(cells, width, height);
+    } else {
+        if (length_list(snake_p->snake_position) < 2) {
+            if (cells[new_loc] == FLAG_GRASS) {
+                if (!(cells[cur_loc] & FLAG_GRASS)) {
+                    cells[cur_loc] = PLAIN_CELL;
+                } else {
+                    cells[cur_loc] = FLAG_GRASS;
+                }
+                cells[new_loc] = FLAG_GRASS | FLAG_SNAKE;
             } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
+                if (!(cells[cur_loc] & FLAG_GRASS)) {
+                    cells[cur_loc] = PLAIN_CELL;
+                } else {
+                    cells[cur_loc] = FLAG_GRASS;
+                }
+                cells[new_loc] = FLAG_SNAKE;
+            }  
+            free(remove_last(&(snake_p->snake_position)));
+            insert_first(&(snake_p->snake_position), &new_loc, sizeof(int));
+        } else {
+            void* last = remove_last(&snake_p->snake_position);
+            int last_loc = *(int*)last;
+            //cells[last_loc] = PLAIN_CELL;
+            if (cells[last_loc] & FLAG_GRASS) {
+                cells[last_loc] = FLAG_GRASS;
             } else {
-                cells[new_head] = FLAG_SNAKE;
+                cells[last_loc] = PLAIN_CELL;
             }
-        } 
+            if (cells[new_loc] & FLAG_SNAKE) {
+                if (cells[last_loc] & FLAG_GRASS) {
+                    cells[last_loc] = FLAG_SNAKE | FLAG_GRASS;
+                } else {
+                    cells[last_loc] = FLAG_SNAKE;
+                }
+                free(last);
+                g_game_over = 1;
+                return;
+            }
+            free(last);
+            if (cells[new_loc] & FLAG_GRASS) {
+                cells[new_loc] = FLAG_SNAKE | FLAG_GRASS;
+            } else {
+                cells[new_loc] = FLAG_SNAKE;
+            }
+            insert_first(&(snake_p->snake_position), &new_loc, sizeof(int));
+        }
     }
-    if (g_snake_direction == INPUT_RIGHT) {
-        new_head = g_snake_head_row * width + (g_snake_head_col + 1);
-        if (cells[new_head] == FLAG_WALL) {
-            g_game_over = 1;
-        }
-        else if (cells[new_head] & FLAG_FOOD) {
-            g_snake_head_col++;
-            int prev_head = g_snake_head_row * width + (g_snake_head_col - 1);
-
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-
-            g_score++;
-            place_food(cells, width, height);
-        }
-        else {
-            g_snake_head_col++;
-            int prev_head = g_snake_head_row * width + (g_snake_head_col - 1);
-            if (!(cells[prev_head] & FLAG_GRASS)) {
-                cells[prev_head] = PLAIN_CELL;
-            } else {
-                cells[prev_head] = FLAG_GRASS;
-            }
-            if(cells[new_head] & FLAG_GRASS) {
-                cells[new_head] = FLAG_SNAKE | FLAG_GRASS;
-            } else {
-                cells[new_head] = FLAG_SNAKE;
-            }
-        } 
-    }
+    return;
 }
 
     
@@ -235,7 +178,23 @@ void place_food(int* cells, size_t width, size_t height) {
 void read_name(char* write_into) {
     // TODO: implement! (remove the call to strcpy once you begin your
     // implementation)
-    strcpy(write_into, "placeholder");
+    printf("Name > ");
+    fflush(0);
+    read(0, write_into, 1000);
+    while (*write_into == '\n') {
+        printf("Name Invalid: must be longer than 0 characters.\n");
+        printf("Name > ");
+        fflush(0);
+        write_into = "\0";
+        //read(0, write_into, 1000);
+    }
+    for (int i = 0; i < (int)strlen(write_into); i++) {
+        if (write_into[i] == '\n') {
+            write_into[i] = '\0';
+        }
+    }
+    g_name = write_into;
+    g_name_len = mbslen(write_into);
 }
 
 /** Cleans up on game over — should free any allocated memory so that the
@@ -247,4 +206,8 @@ void read_name(char* write_into) {
  */
 void teardown(int* cells, snake_t* snake_p) {
     // TODO: implement!
+    while(snake_p->snake_position != NULL) {
+        void* removed = remove_last(&(snake_p->snake_position));
+        free(removed);
+    }
 }

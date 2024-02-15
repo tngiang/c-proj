@@ -90,22 +90,20 @@ enum board_init_status initialize_default_board(int** cells_p, size_t* width_p,
 enum board_init_status initialize_game(int** cells_p, size_t* width_p,
                                        size_t* height_p, snake_t* snake_p,
                                        char* board_rep) {
-    // TODO: implement!
     enum board_init_status status;
+    snake_p->snake_position = NULL;
+    g_game_over = 0;
+    g_score = 0;
+    snake_p->direction = INPUT_NONE;
 
     if (board_rep == NULL) {
         initialize_default_board(cells_p, width_p, height_p);
+        int snake_pos = 20 * 2 + 2;
+        insert_first(&(snake_p->snake_position), &snake_pos, sizeof(int));
         status = INIT_SUCCESS;
-        g_snake_head_row = 2;
-        g_snake_head_col = 2;
     } else {
         status = decompress_board_str(cells_p, width_p, height_p, snake_p, board_rep);
     }
-
-    g_game_over = 0;
-    g_score = 0;
-
-    g_snake_direction = INPUT_RIGHT;
 
     place_food(*cells_p, *width_p, *height_p);
 
@@ -187,8 +185,8 @@ enum board_init_status decompress_board_str(int** cells_p, size_t* width_p,
                     (*cells_p)[cell_index] = FLAG_WALL;
                 } else if (cellType == 'S') {
                     (*cells_p)[cell_index] = FLAG_SNAKE;
-                    g_snake_head_col = col;
-                    g_snake_head_row = row;
+                    int snake_pos = row * (*width_p) + col;
+                    insert_first(&(snake_p->snake_position), &snake_pos, sizeof(int));
                 } else if (cellType == 'G') {
                     (*cells_p)[cell_index] = FLAG_GRASS;
                 } else if (cellType == 'O') {

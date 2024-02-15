@@ -2,6 +2,7 @@ CSCI 0300 Project 1 - Snake
 ===========================
 
 ## Design Overview:
+None
 
 ## Collaborators:
 

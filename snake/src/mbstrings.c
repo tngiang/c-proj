@@ -25,6 +25,27 @@
  * You will need bitwise operations for this part of the assignment!
  */
 size_t mbslen(const char* bytes) {
-    // TODO: implement!
-    return 0;
+    if (bytes == NULL) {
+        return -1;
+    }
+    size_t length = 0;
+    while (*bytes != '\0') {
+        unsigned char byte = (unsigned char)*bytes;
+        if ((byte & 0x80) == 0) {             
+            bytes++;
+        } else if ((byte & 0xE0) == 0xC0) {             
+            if ((byte & 0x1E) == 0) 
+                return -1;
+            bytes += 2;
+        } else if ((byte & 0xF0) == 0xE0) {             
+            bytes += 3;
+        } else if ((byte & 0xF8) == 0xF0) {             
+            bytes += 4;
+        } else { 
+            return -1;
+        }
+        length++;
+    }
+
+    return length;
 }
