@@ -120,20 +120,20 @@ int main(int argc, char** argv) {
 
     // TODO: Remove this message, uncomment the code below this message
     //       and implement Part 1A here.
-    printf(
-        "             ____   \n"
-        "Hello       / . .\\ \n"
-        "CS 300      \\  ---<\n"
-        "student!     \\  /  \n"
-        "   __________/ /    \n"
-        "-=:___________/\n");
+    // printf(
+    //     "             ____   \n"
+    //     "Hello       / . .\\ \n"
+    //     "CS 300      \\  ---<\n"
+    //     "student!     \\  /  \n"
+    //     "   __________/ /    \n"
+    //     "-=:___________/\n");
 
     initialize_window(width, height);
     // TODO: implement the game loop here (Part 1A)!
     while (!g_game_over) {
         enum input_key input = get_input();
 
-        update(cells, width, height, NULL, input, 0);
+        update(cells, width, height, &snake, input, snake_grows);
 
         render_game(cells, width, height);
 

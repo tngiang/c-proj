@@ -138,3 +138,4 @@ void render_game(int* cells, size_t width, size_t height) {
     refresh();
     /* DO NOT MODIFY THIS FUNCTION */
 }
+

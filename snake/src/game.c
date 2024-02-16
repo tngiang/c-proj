@@ -185,9 +185,9 @@ void read_name(char* write_into) {
         printf("Name Invalid: must be longer than 0 characters.\n");
         printf("Name > ");
         fflush(0);
-        write_into = "\0";
-        //read(0, write_into, 1000);
+        read(0, write_into, 1000);
     }
+    printf("%s", write_into);
     for (int i = 0; i < (int)strlen(write_into); i++) {
         if (write_into[i] == '\n') {
             write_into[i] = '\0';
