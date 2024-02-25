@@ -66,6 +66,10 @@ void* dmalloc(size_t sz, const char* file, long line) {
         return NULL;
     }
 
+    if(sz == 0) {
+        return NULL;
+    }
+
     // allocate extra space
     void* block = base_malloc(sizeof(metadata) + sz + sizeof(end));
 
@@ -99,8 +103,8 @@ void* dmalloc(size_t sz, const char* file, long line) {
         global_stats.heap_min = (uintptr_t) metadata_ptr->data_ptr;
     }
 
-    if (global_stats.heap_max == 0 || (uintptr_t) metadata_ptr->data_ptr + sz >= (uintptr_t) global_stats.heap_max) {
-        global_stats.heap_max = (uintptr_t) metadata_ptr->data_ptr + sz;
+    if (global_stats.heap_max == 0 || (uintptr_t) metadata_ptr->data_ptr + sz + sizeof(end) >= (uintptr_t) global_stats.heap_max) {
+        global_stats.heap_max = (uintptr_t) metadata_ptr->data_ptr + sz + sizeof(end);
     }
 
     return metadata_ptr->data_ptr;
@@ -197,13 +201,13 @@ void* dcalloc(size_t nmemb, size_t sz, const char* file, long line) {
     // Your code here (to fix test014).
     size_t result_sz = nmemb*sz;
     void* ptr = NULL;
-    
+
     // check size overflow
-    if (result_sz < sz || result_sz < nmemb) {
-		global_stats.nfail++;
-		global_stats.fail_size += sz;
-		return NULL;
-	}
+    if (sz != 0 && nmemb > ((size_t) -1 / sz)){
+        global_stats.nfail += 1;
+        global_stats.fail_size += result_sz;
+        return NULL;
+    } 
 
     ptr = dmalloc(nmemb * sz, file, line);
     if (ptr) {
@@ -288,5 +292,5 @@ void* drealloc(void* ptr, size_t sz, const char* file, long line) {
         }
     }
     dfree(ptr, file, line);
-    return (void*) new_ptr;
+    return new_ptr;
 }
