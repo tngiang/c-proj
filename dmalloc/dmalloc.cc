@@ -5,7 +5,7 @@
 
 #define FREE ((char*) 0xF7E3F7E3)
 #define ALLOC ((char*) 0xA110C47E)
-#define END ((char*)  0xE0D3E0D)
+char end_id = 'E';
 
 static struct dmalloc_stats global_stats = {0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -18,10 +18,6 @@ typedef struct metadata {
     const char* file;
     long int line;
 } metadata;
-
-typedef struct end {
-    char* state; 
-} end;
 
 metadata* head = NULL;
 
@@ -71,7 +67,7 @@ void* dmalloc(size_t sz, const char* file, long line) {
     }
 
     // allocate extra space
-    void* block = base_malloc(sizeof(metadata) + sz + sizeof(end));
+    void* block = base_malloc(sizeof(metadata) + sz + 8);
 
     // check if failed allocation
     if (block == NULL) {
@@ -88,8 +84,8 @@ void* dmalloc(size_t sz, const char* file, long line) {
     metadata_ptr->file =  file;
     metadata_ptr->line = line;
 
-    end* e = (end*) (metadata_ptr->data_ptr + metadata_ptr->data_sz);
-    e->state = END;
+    char* end_ptr = (char*) (metadata_ptr->data_ptr + metadata_ptr->data_sz);
+    *end_ptr = end_id;
 
     // update stats
     global_stats.ntotal++;
@@ -103,11 +99,11 @@ void* dmalloc(size_t sz, const char* file, long line) {
         global_stats.heap_min = (uintptr_t) metadata_ptr->data_ptr;
     }
 
-    if (global_stats.heap_max == 0 || (uintptr_t) metadata_ptr->data_ptr + sz + sizeof(end) >= (uintptr_t) global_stats.heap_max) {
-        global_stats.heap_max = (uintptr_t) metadata_ptr->data_ptr + sz + sizeof(end);
+    if (global_stats.heap_max == 0 || (uintptr_t) metadata_ptr->data_ptr + sz >= (uintptr_t) global_stats.heap_max) {
+        global_stats.heap_max = (uintptr_t) metadata_ptr->data_ptr + sz;
     }
 
-    return metadata_ptr->data_ptr;
+    return (void*) metadata_ptr->data_ptr;
 }
 
 /**
@@ -133,6 +129,7 @@ void dfree(void* ptr, const char* file, long line) {
     }
 
     metadata* metadata_ptr = (metadata*)((char*)ptr - sizeof(metadata));
+    //printf("metadata ptr: %p", metadata_ptr);
 
     metadata* temp = head;
     int isALLOC = 0;
@@ -143,6 +140,10 @@ void dfree(void* ptr, const char* file, long line) {
         }
         temp = temp->next;
     } 
+
+    if ((uintptr_t)metadata_ptr % 8 != 0) {
+        fprintf(stderr, "MEMORY BUG: %s:%li: invalid free of pointer %p, not allocated\n", file, line, ptr);
+    }
 
    // check for double frees
     if (metadata_ptr->state == FREE) {
@@ -169,8 +170,8 @@ void dfree(void* ptr, const char* file, long line) {
        abort();
     }
 
-    end* e = (end*) ((char*) ptr + metadata_ptr->data_sz);
-    if (e->state != END) {
+    char* end_ptr = (char*) ptr + metadata_ptr->data_sz;
+    if (*end_ptr != end_id) {
         fprintf(stderr,"MEMORY BUG: %s:%li: detected wild write during free of pointer %p\n", file, line, ptr);
         abort();
     }
@@ -292,5 +293,5 @@ void* drealloc(void* ptr, size_t sz, const char* file, long line) {
         }
     }
     dfree(ptr, file, line);
-    return new_ptr;
+    return (void*) new_ptr;
 }

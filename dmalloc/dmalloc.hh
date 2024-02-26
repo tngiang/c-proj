@@ -45,6 +45,8 @@ void dfree(void* ptr, const char* file, long line);
  */
 void* dcalloc(size_t nmemb, size_t sz, const char* file, long line);
 
+void* drealloc(void* ptr, size_t sz, const char* file, long line);
+
 // struct to store global information about the dalloc functions
 struct dmalloc_stats {
     unsigned long long nactive;         // # active allocations
