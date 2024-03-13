@@ -147,7 +147,6 @@ struct io300_file* io300_open(const char* const path, char* description) {
 int io300_seek(struct io300_file* const f, off_t const pos) {
     check_invariants(f);
     f->stats.seeks++;
-
     if (f->dirty) {
         io300_flush(f);
     }
@@ -158,6 +157,7 @@ int io300_seek(struct io300_file* const f, off_t const pos) {
     f->head = pos;
     f->cache_start = f->head;
     f->cache_end = f->head;
+
     if (f->head > f->file_size) {
         f->file_size = f->head; // seek beyond eof
     } else {
@@ -169,6 +169,7 @@ int io300_seek(struct io300_file* const f, off_t const pos) {
             f->cache_end = f->head; // failed to read from the file
         }
     }
+
     return f->head;
 }
 
@@ -205,19 +206,19 @@ off_t io300_filesize(struct io300_file* const f) {
 
 int io300_readc(struct io300_file* const f) {
     check_invariants(f);
-
-    if (f->head >= f->file_size) {
+    // TODO: Implement this
+    if (f->head > f->file_size) {
         return -1;
     }
-    if (f->head < f->cache_start || f->head >= f->cache_end) {
-        f->cache_start = f->head;
-        ssize_t n_read = pread(f->fd, f->cache, CACHE_SIZE, f->cache_start);
-        if (n_read <= 0) {
+    if(f->head == f->cache_end) {
+        if (io300_fetch(f) == -1) { // if cache is empty, try to refill
             return -1;
         }
-        f->cache_end = f->cache_start + n_read;
+        if(f->head == f->cache_end) {
+            return -1; // if cache still empty after trying to refill
+        }
     }
-    unsigned char c = f->cache[f->head - f->cache_start];
+    unsigned char c = f->cache[f->head -f->cache_start];
     f->head++;
     return (int) c;
 }
@@ -310,9 +311,7 @@ int io300_flush(struct io300_file* const f) {
     check_invariants(f);
     // TODO: Implement this
     lseek(f->fd, f->cache_start, SEEK_SET);
-
     ssize_t n_written = write(f->fd, f->cache, f->head - f->cache_start);
-
     if (n_written >= 0) {
         f->cache_start = f->head; // update to current head posn
         f->cache_end = f->cache_end + CACHE_SIZE;
@@ -328,7 +327,6 @@ int io300_fetch(struct io300_file* const f) {
     /* This helper should contain the logic for fetching data from the file into the cache. */
     /* Think about how you can use this helper to refactor out some of the logic in your read, write, and seek functions! */
     /* Feel free to add arguments if needed. */
-
     if (f->dirty) {
         io300_flush(f);
     } else {
