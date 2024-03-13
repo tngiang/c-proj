@@ -52,6 +52,7 @@ struct io300_file {
     off_t cache_start; // where in the file our cache starts
     off_t cache_end; // where in the file our cache ends
     off_t file_size; // size of the file
+    int direction; // access direction
 
     
     /* Used for debugging, keep track of which io300_file is which */
@@ -136,6 +137,7 @@ struct io300_file* io300_open(const char* const path, char* description) {
     ret->cache_start = ret->head = 0;
     ret->cache_end = 0;
     ret->dirty = 0;
+    ret->direction = 1;
     ret->file_size = io300_filesize(ret);
     io300_fetch(ret);
 
@@ -204,6 +206,7 @@ off_t io300_filesize(struct io300_file* const f) {
     }
 }
 
+
 int io300_readc(struct io300_file* const f) {
     check_invariants(f);
     // TODO: Implement this
@@ -222,6 +225,7 @@ int io300_readc(struct io300_file* const f) {
     f->head++;
     return (int) c;
 }
+
 
 int io300_writec(struct io300_file* f, int ch) {
     check_invariants(f);
@@ -310,8 +314,9 @@ ssize_t io300_write(struct io300_file* const f, const char* buff,
 int io300_flush(struct io300_file* const f) {
     check_invariants(f);
     // TODO: Implement this
-    lseek(f->fd, f->cache_start, SEEK_SET);
-    ssize_t n_written = write(f->fd, f->cache, f->head - f->cache_start);
+    //lseek(f->fd, f->cache_start, SEEK_SET);
+    //ssize_t n_written = write(f->fd, f->cache, f->head - f->cache_start);
+    ssize_t n_written = pwrite(f->fd, f->cache, f->head - f->cache_start, f->cache_start);
     if (n_written >= 0) {
         f->cache_start = f->head; // update to current head posn
         f->cache_end = f->cache_end + CACHE_SIZE;
@@ -323,19 +328,44 @@ int io300_flush(struct io300_file* const f) {
 
 int io300_fetch(struct io300_file* const f) {
     check_invariants(f);
-    // TODO: Implement this
-    /* This helper should contain the logic for fetching data from the file into the cache. */
-    /* Think about how you can use this helper to refactor out some of the logic in your read, write, and seek functions! */
-    /* Feel free to add arguments if needed. */
+
     if (f->dirty) {
         io300_flush(f);
     } else {
         f->cache_start = f->head = f->cache_end;
     }
-    ssize_t n_read = read(f->fd, f->cache, CACHE_SIZE);
+
+    off_t fetch_start = f->head;
+    off_t fetch_end = f->head + CACHE_SIZE;
+
+    if (f->head < f->cache_start) {
+        f->direction = 0; // reverse
+    } else if (f->head > f->cache_end) {
+        f->direction = 1;
+    }
+
+    if (f->direction == 1) {
+        fetch_start = f->head;
+        fetch_end = f->head + CACHE_SIZE;
+    } else {
+        fetch_start = f->head - CACHE_SIZE;
+        if (fetch_start < 0) {
+            fetch_start = 0;
+        }
+        fetch_end = f->head;
+    }
+
+    // Seek to the fetch start position
+    //lseek(f->fd, fetch_start, SEEK_SET);
+
+    // Read data into the cache
+    ssize_t n_read = pread(f->fd, f->cache, fetch_end - fetch_start, fetch_start);
+    //ssize_t n_read = read(f->fd, f->cache, fetch_end - fetch_start);
     if (n_read >= 0) {
-        f->cache_end = f->head + n_read;
+        f->cache_start = fetch_start;
+        f->cache_end = fetch_start + n_read;
         return 0;
     }
+
     return -1;
 }
