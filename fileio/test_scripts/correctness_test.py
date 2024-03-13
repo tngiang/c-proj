@@ -144,7 +144,7 @@ log('\n======= (2) END-TO-END TESTS =======')
 runtests({
     'all_interaction' : create_unit_test("all"),
     'byte_cat': byte_cat,
-    # 'diabolical_byte_cat': diabolical_byte_cat,
+    'diabolical_byte_cat': diabolical_byte_cat,
     'reverse_byte_cat': reverse_byte_cat,
     'block_cat_1': create_block_cat(1),
     'block_cat_17': create_block_cat(17),

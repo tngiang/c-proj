@@ -21,7 +21,7 @@
     When starting, you might want to change this for testing on small files.
 */
 #ifndef CACHE_SIZE
-#define CACHE_SIZE 8
+#define CACHE_SIZE 4096
 #endif
 
 #if (CACHE_SIZE < 4)
@@ -47,7 +47,13 @@ struct io300_file {
     char* cache;
 
     // TODO: Your properties go here
+    int dirty; // wether or not we have written to the cache
+    off_t head; // where the read/write head is located in the file from the operations the user asked for (not including our prefetches)
+    off_t cache_start; // where in the file our cache starts
+    off_t cache_end; // where in the file our cache ends
+    off_t file_size; // size of the file
 
+    
     /* Used for debugging, keep track of which io300_file is which */
     char* description;
     /* To tell if we are getting the performance we are expecting */
@@ -69,6 +75,8 @@ static void check_invariants(struct io300_file* f) {
     assert(f->fd >= 0);
 
     // TODO: Add more invariants
+    assert(f->cache_start <= f->head && f->head <= f-> cache_end); 
+    assert(f->cache_end - f->cache_start <= CACHE_SIZE); 
 }
 
 /*
@@ -92,6 +100,8 @@ static void dbg(struct io300_file* f, char* fmt, ...) {
     printf("%s", buff);
 #endif
 }
+
+int io300_fetch(struct io300_file* const f);
 
 struct io300_file* io300_open(const char* const path, char* description) {
     if (path == NULL) {
@@ -123,6 +133,11 @@ struct io300_file* io300_open(const char* const path, char* description) {
     }
     ret->description = description;
     // TODO: Initialize your file
+    ret->cache_start = ret->head = 0;
+    ret->cache_end = 0;
+    ret->dirty = 0;
+    ret->file_size = io300_filesize(ret);
+    io300_fetch(ret);
 
     check_invariants(ret);
     dbg(ret, "Just finished initializing file from path: %s\n", path);
@@ -133,9 +148,30 @@ int io300_seek(struct io300_file* const f, off_t const pos) {
     check_invariants(f);
     f->stats.seeks++;
 
-    // TODO: Implement this
-    return lseek(f->fd, pos, SEEK_SET);
+    if (f->dirty) {
+        io300_flush(f);
+    }
+    off_t new_pos = lseek(f->fd, pos, SEEK_SET);
+    if (new_pos == -1) {
+        return -1;
+    }
+    f->head = pos;
+    f->cache_start = f->head;
+    f->cache_end = f->head;
+    if (f->head > f->file_size) {
+        f->file_size = f->head; // seek beyond eof
+    } else {
+        size_t to_read = (f->head + CACHE_SIZE) > f->file_size ? f->file_size - f->head : CACHE_SIZE;
+        ssize_t n_read = read(f->fd, f->cache, to_read);
+        if (n_read >= 0) {
+            f->cache_end = f->head + n_read;
+        } else {
+            f->cache_end = f->head; // failed to read from the file
+        }
+    }
+    return f->head;
 }
+
 
 int io300_close(struct io300_file* const f) {
     check_invariants(f);
@@ -146,10 +182,14 @@ int io300_close(struct io300_file* const f) {
            f->stats.seeks);
 #endif
     // TODO: Implement this
-    close(f->fd);
+    if (f->dirty != 0) {
+        io300_flush(f);
+    }
+
+    int ret = close(f->fd);
     free(f->cache);
     free(f);
-    return 0;
+    return ret;
 }
 
 off_t io300_filesize(struct io300_file* const f) {
@@ -165,38 +205,121 @@ off_t io300_filesize(struct io300_file* const f) {
 
 int io300_readc(struct io300_file* const f) {
     check_invariants(f);
-    // TODO: Implement this
-    unsigned char c;
-    if (read(f->fd, &c, 1) == 1) {
-        return c;
-    } else {
+
+    if (f->head >= f->file_size) {
         return -1;
     }
+    if (f->head < f->cache_start || f->head >= f->cache_end) {
+        f->cache_start = f->head;
+        ssize_t n_read = pread(f->fd, f->cache, CACHE_SIZE, f->cache_start);
+        if (n_read <= 0) {
+            return -1;
+        }
+        f->cache_end = f->cache_start + n_read;
+    }
+    unsigned char c = f->cache[f->head - f->cache_start];
+    f->head++;
+    return (int) c;
 }
+
 int io300_writec(struct io300_file* f, int ch) {
     check_invariants(f);
     // TODO: Implement this
-    char const c = (char)ch;
-    return write(f->fd, &c, 1) == 1 ? ch : -1;
+    if(f->head == f->cache_end) {
+        if (f->head < io300_filesize(f)) {
+            io300_fetch(f);
+        } else if (io300_flush(f) == -1) {
+            return -1;
+        }
+    }
+    f->cache[f->head - f->cache_start] = ch;
+    f->head++;
+    f->dirty = 1;
+
+    return ch;
 }
+
 
 ssize_t io300_read(struct io300_file* const f, char* const buff,
                    size_t const sz) {
     check_invariants(f);
     // TODO: Implement this
-    return read(f->fd, buff, sz);
+
+    if (f->head > f->file_size) {
+        return 0;
+    }
+    size_t pos = 0;
+    while (pos < sz) {
+        if (f->head == f->cache_end) {
+            io300_fetch(f);
+            if (f->head == f->cache_end) {
+                break; // if cache is still empty after fetching, break loop
+            }
+        }
+        size_t n_to_copy = f->cache_end - f->head;
+        if (n_to_copy > sz - pos) {
+            n_to_copy = sz - pos;
+        }
+        memcpy(buff + pos, f->cache + (f->head - f->cache_start), n_to_copy);  
+        f->head = f->head + n_to_copy;
+        pos = pos + n_to_copy;
+    }
+    return pos; 
 }
+
+
 ssize_t io300_write(struct io300_file* const f, const char* buff,
                     size_t const sz) {
     check_invariants(f);
     // TODO: Implement this
-    return write(f->fd, buff, sz);
+    size_t pos = 0;
+    while (pos < sz) {
+        if (f->head == f->cache_start + CACHE_SIZE) {
+            if (f->head < f->file_size) {
+                io300_fetch(f);
+            } else {
+                if (f->cache_end < f->head) {
+                    f->cache_end = f->cache_start + CACHE_SIZE;
+                }
+                if (io300_flush(f) == -1) {
+                    return -1;
+                }
+            }
+        }
+        size_t remaining = sz - pos;
+        size_t available = CACHE_SIZE - (f->head - f->cache_start);
+        size_t n_to_write;
+
+        if (remaining < available) {
+            n_to_write = remaining;
+        } else {
+            n_to_write = available;
+        }
+        memcpy(f->cache + (f->head - f->cache_start), buff + pos, n_to_write);
+        f->head = f->head + n_to_write;
+        f->dirty = 1;
+        pos = pos + n_to_write;
+    }
+    if (f->cache_end < f->head) {
+        f->cache_end = f->cache_start + CACHE_SIZE;
+    }
+    return pos;
 }
 
 int io300_flush(struct io300_file* const f) {
     check_invariants(f);
     // TODO: Implement this
-    return 0;
+    lseek(f->fd, f->cache_start, SEEK_SET);
+
+    ssize_t n_written = write(f->fd, f->cache, f->head - f->cache_start);
+
+    if (n_written >= 0) {
+        f->cache_start = f->head; // update to current head posn
+        f->cache_end = f->cache_end + CACHE_SIZE;
+        f->dirty = 0;
+        return 0;
+    }
+    return -1;
 }
 
 int io300_fetch(struct io300_file* const f) {
@@ -205,5 +328,16 @@ int io300_fetch(struct io300_file* const f) {
     /* This helper should contain the logic for fetching data from the file into the cache. */
     /* Think about how you can use this helper to refactor out some of the logic in your read, write, and seek functions! */
     /* Feel free to add arguments if needed. */
-    return 0;
+
+    if (f->dirty) {
+        io300_flush(f);
+    } else {
+        f->cache_start = f->head = f->cache_end;
+    }
+    ssize_t n_read = read(f->fd, f->cache, CACHE_SIZE);
+    if (n_read >= 0) {
+        f->cache_end = f->head + n_read;
+        return 0;
+    }
+    return -1;
 }

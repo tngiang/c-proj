@@ -379,7 +379,7 @@ int perform_read(struct io300_file* file, size_t* loc_ptr,
             if (buffer[j] != contents[*loc_ptr + j]) {
                 fprintf(stderr,
                         "Error: bytes returned by `io300_read` did not match "
-                        "those at the current file location\n");
+                        "those at the current file location: %ld; expected: %c, got: %c\n", *loc_ptr + j, contents[*loc_ptr + j], buffer[j]);
                 return -1;
             }
         }
@@ -460,7 +460,7 @@ int verify_contents(const char* path, unsigned char* contents, size_t size) {
         if (byte_read != contents[loc]) {
             fprintf(stderr,
                     "Error: byte in final file did not match that expected at "
-                    "the current file location\n");
+                    "the current file location: %ld\n", loc);
             return -1;
         }
 
