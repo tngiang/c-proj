@@ -67,8 +67,10 @@ void kernel(const char* command) {
 
     // (re-)Initialize the kernel page table.
     for (vmiter it(kernel_pagetable); it.va() < MEMSIZE_PHYSICAL; it += PAGESIZE) {
-        if (it.va() != 0) {
-            it.map(it.va(), PTE_P | PTE_W | PTE_U);
+        if (it.va() < PROC_START_ADDR && it.va() != CONSOLE_ADDR) {
+            it.map(it.va(), PTE_P | PTE_W); // kernel memory
+        } else if (it.va() != 0) {
+            it.map(it.va(), PTE_P | PTE_W | PTE_U); // userspace memory
         } else {
             // nullptr is inaccessible even to the kernel
             it.map(it.va(), 0);
@@ -154,7 +156,19 @@ void process_setup(pid_t pid, const char* program_name) {
 
     // Initialize this process's page table. Notice how we are currently
     // sharing the kernel's page table.
-    ptable[pid].pagetable = kernel_pagetable;
+    ptable[pid].pagetable = (x86_64_pagetable*) kalloc(PAGESIZE);
+    if (ptable[pid].pagetable) {
+        memset(ptable[pid].pagetable, 0, PAGESIZE);
+    }
+
+    vmiter process_iterator(ptable[pid].pagetable);
+    // Copy kernel mappings to new page table
+    for (vmiter kernel_iterator(kernel_pagetable); 
+        kernel_iterator.va() < PROC_START_ADDR; 
+        kernel_iterator += PAGESIZE) {
+        process_iterator.map(kernel_iterator.pa(), kernel_iterator.perm());
+        process_iterator += PAGESIZE;
+    }
 
     // Initialize `program_loader`.
     // The `program_loader` is an iterator that visits segments of executables.
@@ -174,26 +188,42 @@ void process_setup(pid_t pid, const char* program_name) {
             // Here, we're directly getting the page that has the same physical address as the
             // virtual address `a`, and claiming that page by incrementing its reference count
             // (you will have to change this later).
-            pages[a / PAGESIZE].refcount = 1;
+            uintptr_t pa = (uintptr_t) kalloc(PAGESIZE);
+            assert(pa != 0);
+            pages[pa / PAGESIZE].refcount = 1;
+
+            process_iterator.find(a);
+            if (loader.writable()) {
+                process_iterator.map(pa, PTE_P | PTE_W | PTE_U);
+            } else {
+                process_iterator.map(pa, PTE_P | PTE_U);
+            }
         }
     }
 
     // We now copy instructions and data into memory that we just allocated.
     for (loader.reset(); loader.present(); ++loader) {
-        memset((void*) loader.va(), 0, loader.size());
-        memcpy((void*) loader.va(), loader.data(), loader.data_size());
+        process_iterator.find(loader.va());
+        memset((void*) process_iterator.pa(), 0, loader.size());
+        memcpy((void*) process_iterator.pa(), loader.data(), loader.data_size());
     }
 
     // Set %rip and mark the entry point of the code.
     ptable[pid].regs.reg_rip = loader.entry();
 
     // We also need to allocate a page for the stack.
-    uintptr_t stack_addr = PROC_START_ADDR + PROC_SIZE * pid - PAGESIZE;
-    assert(!pages[stack_addr / PAGESIZE].used());
+    uintptr_t stack_addr = MEMSIZE_VIRTUAL - PAGESIZE;
+    uintptr_t stack_pa = (uintptr_t) kalloc(PAGESIZE);
+    assert(stack_pa != 0);
+    //assert(!pages[stack_addr / PAGESIZE].used());
     // Again, we're using the physical page that has the same address as the `stack_addr` to
     // maintain the one-to-one mapping between physical and virtual memory (you will have to change
     // this later).
-    pages[stack_addr / PAGESIZE].refcount = 1;
+    //pages[stack_addr / PAGESIZE].refcount = 1;
+    pages[stack_pa / PAGESIZE].refcount = 1;
+
+    process_iterator.find(stack_addr).map(stack_pa, PTE_P | PTE_W | PTE_U);
+
     // Set %rsp to the start of the stack.
     ptable[pid].regs.reg_rsp = stack_addr + PAGESIZE;
 
@@ -347,14 +377,30 @@ uintptr_t syscall(regstate* regs) {
 //    in `u-lib.hh` (but in the stencil code, it does not - you will
 //    have to change this).
 
+// sys_page_alloc(addr)
+//    Allocate a page of memory at address `addr`. The newly-allocated
+//    memory is initialized to 0. Any memory previously located at `addr`
+//    should be freed. Returns 0 on success and -1 on failure (out of
+//    memory or invalid argument).
+//
+//    `Addr` should be page-aligned (i.e., a multiple of PAGESIZE == 4096),
+//    >= PROC_START_ADDR, and < MEMSIZE_VIRTUAL.
+
 int syscall_page_alloc(uintptr_t addr) {
-    assert(addr % PAGESIZE == 0);
-    assert(!pages[addr / PAGESIZE].used());
+    if (addr < PROC_START_ADDR || addr >= MEMSIZE_VIRTUAL) {
+        return -1;
+    }
     // Currently we're simply using the physical page that has the same address
     // as `addr` (which is a virtual address).
-    pages[addr / PAGESIZE].refcount = 1;
-    memset((void*) addr, 0, PAGESIZE);
-    return 0;
+    uintptr_t pa = (uintptr_t) kalloc(PAGESIZE);
+    assert(pa % PAGESIZE == 0);
+    if (pa) {
+        vmiter (current->pagetable, addr).try_map(pa, PTE_P | PTE_W | PTE_U);
+        pages[pa / PAGESIZE].refcount = 1;
+        memset((void*) pa, 0, PAGESIZE);
+        return 0;
+    }
+    return -1;
 }
 
 // syscall_fork()
