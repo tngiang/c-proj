@@ -34,7 +34,7 @@ a Markdown comment; you can delete the text and the arrow symbols. -->
 
 ## Part 3
 
-### Q5 (Comparing with other forms of preservation)
+### Q5 (Comparing with other forms of preservation) 
 
 <!-- Answer here -->
 
