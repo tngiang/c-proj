@@ -134,7 +134,9 @@ bool SimpleClient::MultiPut(const std::vector<std::string>& keys,
   return false;
 }
 
-bool SimpleClient::GDPRDelete(const std::string& user) {
+
+
+  bool SimpleClient::GDPRDelete(const std::string& user) {
   // TODO: Write your GDPR deletion code here!
   // You can invoke operations directly on the client object, like so:
   //
@@ -144,6 +146,53 @@ bool SimpleClient::GDPRDelete(const std::string& user) {
   //
   // Assume the `user` arugment is a user ID such as "user_1".
 
-  cerr_color(RED, "GDPR deletion is unimplemented!");
-  return false;
-}
+  // This delete function will delete the user's posts and id. However, 
+  // it does not delete any other data, so replies to the posts and 
+  // posts by other users that are related to this user will be retained.
+
+    // DELETE all posts made by the user
+    std::string posts_key = user + "_posts";
+    std::optional<std::string> user_posts = Get(posts_key);
+    if (user_posts) {
+        std::vector<std::string> post_ids; 
+        std::stringstream post_stream(user_posts.value());
+        std::string post_id;
+
+        while (std::getline(post_stream, post_id, ',')) {
+            post_id.pop_back();
+            Delete(post_id); // Delete each post ID
+        }
+        // DELETE the key for the user's posts list after all posts have been deleted
+        Delete(posts_key);
+    }
+
+    // DELETE user from user list
+    std::optional<std::string> all_users = Get("all_users"); // Get the current list of all users
+    std::vector<std::string> updated_all_users; // This vector will hold the new list of users excluding the one to be removed
+    std::stringstream user_stream(all_users.value());
+    std::string current_user;
+
+    while (std::getline(user_stream, current_user, ',')) { // Iterate through the comma-seperated list of users
+        if (current_user != user) {
+            updated_all_users.push_back(current_user); // If current user is not the one to remove, add to the new user list
+        }
+    }
+
+    // Rebuild the all_users string without the removed user
+    std::string updated_all_users_str;
+    for (const auto& elem : updated_all_users) {
+        updated_all_users_str += elem + ','; // Add each user followed by a comma
+    }
+    if (!updated_all_users_str.empty()) {
+        updated_all_users_str.pop_back(); // Remove the trailing comma
+    }
+    Put("all_users", updated_all_users_str); // Update the all_users key with the new user list
+
+    // DELETE user ID 
+    Delete(user);
+
+    return true;
+    
+ }
+
+
