@@ -2,6 +2,7 @@
 
 bool StaticShardController::Query(const QueryRequest*, QueryResponse* res) {
   // TODO (Part B, Step 1): Implement!
+  std::unique_lock guard(this->config_mtx);
   res->config = this->config;
   return true;
 }

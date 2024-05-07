@@ -162,25 +162,25 @@ bool KvServer::process_config() {
   // TODO:
   //  1. Get all of the server's key-value pairs (which KvStore functions might
   //  help you with this?)
-  auto keys = this->store->AllKeys();
+  std::vector<std::string> keys = this->store->AllKeys();
     
   //  2. For each pair, check if the server is still responsible for it.
   //  If the server is no longer responsible for the pair,
   //  add the pair to_transfer under the key of the newly-responsible (i.e.,
   //  destination) server and delete the pair from this server's store.
   for (const auto& key : keys) {
-  auto responsible_server = this->config.get_server(key);
-  if (responsible_server && *responsible_server != this->address) {
-    GetRequest get_req{key};
-    GetResponse get_res{};
-    if (this->store->Get(&get_req, &get_res)) {
-      to_transfer[*responsible_server][0].push_back(key);
-      to_transfer[*responsible_server][1].push_back(get_res.value);
-      DeleteRequest delete_req{key};
-      DeleteResponse delete_res{};
-      this->store->Delete(&delete_req, &delete_res);
+    auto responsible_server = this->config.get_server(key);
+    if (responsible_server && *responsible_server != this->address) {
+      GetRequest get_req{key};
+      GetResponse get_res{};
+      if (this->store->Get(&get_req, &get_res)) {
+        to_transfer[*responsible_server][0].push_back(key);
+        to_transfer[*responsible_server][1].push_back(get_res.value);
+        DeleteRequest delete_req{key};
+        DeleteResponse delete_res{};
+        this->store->Delete(&delete_req, &delete_res);
+      }
     }
-  }
   }
 
   for (auto&& [s, responsible_pairs] : to_transfer) {
