@@ -2,13 +2,17 @@
 
 bool StaticShardController::Query(const QueryRequest*, QueryResponse* res) {
   // TODO (Part B, Step 1): Implement!
-
+  res->config = this->config;
   return true;
 }
 
 bool StaticShardController::Join(const JoinRequest* req, JoinResponse*) {
   // TODO (Part B, Step 1): Implement!
-
+  std::unique_lock guard(this->config_mtx);
+  if (this->config.server_to_shards.find(req->server) != this->config.server_to_shards.end()) {
+    return false;
+  }
+  this->config.server_to_shards[req->server] = {};
   cout_color(BLUE, "Added server ", req->server,
              " to shardcontroller configuration.");
   return true;
@@ -16,6 +20,18 @@ bool StaticShardController::Join(const JoinRequest* req, JoinResponse*) {
 
 bool StaticShardController::Leave(const LeaveRequest* req, LeaveResponse*) {
   // TODO (Part B, Step 1): Implement!
+  std::unique_lock guard(this->config_mtx);
+  auto it = this->config.server_to_shards.find(req->server);
+  if (it == this->config.server_to_shards.end()) {
+    return false;
+  }
+  std::vector<Shard> shards = it->second;
+  this->config.server_to_shards.erase(it);
+
+  if (!this->config.server_to_shards.empty()) {
+    auto first_server = this->config.server_to_shards.begin();
+    first_server->second.insert(first_server->second.end(), shards.begin(), shards.end());
+  }
 
   cout_color(BLUE, "Deleted server ", req->server,
              " on shardcontroller configuration.");
@@ -24,6 +40,11 @@ bool StaticShardController::Leave(const LeaveRequest* req, LeaveResponse*) {
 
 bool StaticShardController::Move(const MoveRequest* req, MoveResponse*) {
   // TODO (Part B, Step 1): Implement!
+  std::unique_lock guard(this->config_mtx);
+
+  if (this->config.server_to_shards.find(req->server) == this->config.server_to_shards.end()) {
+      return false; // fails if nonexistent server
+  }
 
   // TODO: For each shard to be moved, iterate over each server's shards.
   // For each of the server's shards, if 'moved' overlaps with 'shard', compute
@@ -47,30 +68,45 @@ bool StaticShardController::Move(const MoveRequest* req, MoveResponse*) {
         switch (os) {
           case OverlapStatus::NO_OVERLAP: {
             // TODO
+            new_shards.push_back(shard); // no overlap, add the current shard to the new shards
             continue;
           }
           case OverlapStatus::OVERLAP_START: {
             // TODO
+            std::pair<Shard, Shard> split_shards = split_shard(shard, moved.upper);
+            new_shards.push_back(split_shards.second); // add second part of split shard to new shards list
             continue;
           }
           case OverlapStatus::OVERLAP_END: {
             // TODO
+            std::pair<Shard, Shard> split_shards = split_shard(shard, moved.lower, false);
+            new_shards.push_back(split_shards.first); 
+            continue;
             continue;
           }
           case OverlapStatus::COMPLETELY_CONTAINS: {
             // TODO
+            std::pair<Shard, Shard> split_shards1 = split_shard(shard, moved.lower, false);
+            std::pair<Shard, Shard> split_shards2 = split_shard(split_shards1.second, moved.upper);
+            new_shards.push_back(split_shards1.first);
+            new_shards.push_back(split_shards2.second);
             continue;
           }
           case OverlapStatus::COMPLETELY_CONTAINED:
             // TODO
-            continue;
+            continue; // if current shard completely contains the moved shard, skip adding it to new shards list
         }
       }
-      shards = new_shards;
+      shards = new_shards; // update server's shards with the new shards list
     }
   }
 
   // TODO: Now, actually move the shard onto the target server!
+  this->config.server_to_shards[req->server].insert(
+    this->config.server_to_shards[req->server].end(),
+    req->shards.begin(), 
+    req->shards.end()
+  );
 
   cout_color(DIM, "Moved the following shards to server ", req->server, ":");
   for (auto&& s : req->shards) print_color(std::cout, DIM, s, " ");

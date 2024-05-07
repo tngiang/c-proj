@@ -6,7 +6,7 @@ int KvServer::start() {
   // Initialize KvStore
   // TODO (Part B, Step 2): Change your underlying KvStore to the
   // ConcurrentKvStore!
-  this->store = std::make_unique<SimpleKvStore>();
+  this->store = std::make_unique<ConcurrentKvStore>();
 
   // Create listener socket, and start client listener
   this->listener_fd = open_listener_socket(address);
@@ -46,6 +46,9 @@ int KvServer::start() {
     // TODO (Part B, Step 2): Send a join request to the shardcontroller
     // Take a look at the functions provided in this file to see if any of them
     // will help you!
+    if (!this->shardcontroller_address.empty()) {
+      this->Join();
+    }
 
     this->shardcontroller_querier =
         std::thread(&KvServer::process_config_loop, this);
@@ -81,6 +84,9 @@ void KvServer::stop() {
     // TODO (Part B, Step 2): Send a leave request to the shardcontroller
     // Take a look at the functions provided in this file to see if any of them
     // will help you!
+    if (!this->shardcontroller_address.empty()) {
+      this->Leave();
+    }
 
     cout_color(BLUE, "Joining query shardcontroller thread...");
     this->shardcontroller_querier.join();
@@ -135,7 +141,6 @@ std::optional<QueryResponse> KvServer::query_shardcontroller(
 
 bool KvServer::process_config() {
   // TODO (Part B, Step 2): Implement!
-
   std::unique_lock lock(this->config_mtx);
 
   auto res = this->query_shardcontroller(this->shardcontroller_querier_conn);
@@ -146,6 +151,7 @@ bool KvServer::process_config() {
 
   // TODO: Update this->config to reflect the result from querying the
   // shardcontroller
+  this->config = res->config;
 
   // to_transfer maps server --> [<vector of keys to transfer to server>,
   // <vector of values to transfer to server>]
@@ -156,32 +162,46 @@ bool KvServer::process_config() {
   // TODO:
   //  1. Get all of the server's key-value pairs (which KvStore functions might
   //  help you with this?)
+  auto keys = this->store->AllKeys();
+    
   //  2. For each pair, check if the server is still responsible for it.
   //  If the server is no longer responsible for the pair,
   //  add the pair to_transfer under the key of the newly-responsible (i.e.,
   //  destination) server and delete the pair from this server's store.
+  for (const auto& key : keys) {
+  auto responsible_server = this->config.get_server(key);
+  if (responsible_server && *responsible_server != this->address) {
+    GetRequest get_req{key};
+    GetResponse get_res{};
+    if (this->store->Get(&get_req, &get_res)) {
+      to_transfer[*responsible_server][0].push_back(key);
+      to_transfer[*responsible_server][1].push_back(get_res.value);
+      DeleteRequest delete_req{key};
+      DeleteResponse delete_res{};
+      this->store->Delete(&delete_req, &delete_res);
+    }
+  }
+  }
 
-  // NOTE: Comment this in to transfer the keys!
-  // // for each server responsible for moved keys:
-  // for (auto&& [s, responsible_pairs] : to_transfer) {
-  //     while (true) {
-  //         // connect to server
-  //         std::shared_ptr<ServerConn> conn = connect_to_server(s);
-  //         if (!conn) {
-  //             cerr_color(RED, "Failed to connect to server ", s);
-  //             continue;
-  //         }
-  //         // make MultiPut request
-  //         MultiPutRequest req{responsible_pairs[0], responsible_pairs[1]};
-  //         if (!conn->send_request(req)) continue;
+  for (auto&& [s, responsible_pairs] : to_transfer) {
+  while (true) {
+    // connect to server
+    std::shared_ptr<ServerConn> conn = connect_to_server(s);
+    if (!conn) {
+      cerr_color(RED, "Failed to connect to server ", s);
+      continue;
+    }
+    // make MultiPut request
+    MultiPutRequest req{responsible_pairs[0], responsible_pairs[1]};
+    if (!conn->send_request(req)) continue;
 
-  //         // receive response, and check for success
-  //         std::optional<Response> res = conn->recv_response();
-  //         if (!res) continue;
-  //         if (std::get_if<ErrorResponse>(&*res)) continue;
-  //         break;
-  //     }
-  // }
+    // receive response, and check for success
+    std::optional<Response> res = conn->recv_response();
+    if (!res) continue;
+    if (std::get_if<ErrorResponse>(&*res)) continue;
+    break;
+    }
+  }
 
   return true;
 }

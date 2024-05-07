@@ -21,6 +21,15 @@ std::optional<std::string> ShardControllerConfig::get_server(
   std::string key_uppercase = to_upper(key);
   // TODO (Part B, Step 2): Implement!
   // You should use key_uppercase (instead of key) in your implementation
+
+  for (const auto& [server, shards] : this->server_to_shards) {
+    for (const auto& shard : shards) {
+      if (shard.contains(key_uppercase)) {
+        return server;
+      }
+    }
+  }
+  
   cerr_color(
       RED,
       "Shardcontroller config does not contain any server responsible for "
