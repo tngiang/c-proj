@@ -2,7 +2,7 @@
 
 This document provides a conceptual design overview of the main functions implemented inside 'kernel.cc'. Below are descriptions of each major function and its implementation.
 
-## 'kernel()'
+## kernel()
 
 The 'kernel' function's primary responsibility is initializing our kernel page table. During initialization, several conditions are checked:
 
@@ -12,7 +12,7 @@ The 'kernel' function's primary responsibility is initializing our kernel page t
 
 - **'NULL_POINTER'**: For each iteration, if the virtual address is not the null pointer, all permissions are set (user-space). If the virtual address equals the null pointer, it's initialized to 0.
 
-## 'process_setup()'
+## process_setup()
 
 This function handles several critical setup operations:
 
@@ -22,7 +22,7 @@ This function handles several critical setup operations:
 
 3. Concludes with stack allocation, setting the stack address to 'MEMSIZE_VIRTUAL - PAGESIZE'. This allows each process's stack to grow downward starting at that address.
 
-## 'syscall_page_alloc()'
+## syscall_page_alloc()
 
 This function manages heap allocation with the following key points:
 
@@ -33,7 +33,7 @@ This function manages heap allocation with the following key points:
   - Address greater than or equal to 'MEMSIZE_VIRTUAL'
 - For valid addresses, maps the physical page using 'kalloc()' to the requested virtual address
 
-## 'syscall_fork()'
+## syscall_fork()
 
 This function handles the 'SYSCALL_FORK' system call with the following process:
 
@@ -46,7 +46,7 @@ This function handles the 'SYSCALL_FORK' system call with the following process:
 
 Important: If any mapping or 'kalloc()' fails, ensures proper cleanup and returns -1 to prevent memory leaks.
 
-## 'syscall_exit()'
+## syscall_exit()
 
 This function manages program termination, primarily implemented through a helper function 'sys_call_kfree_helper()':
 
