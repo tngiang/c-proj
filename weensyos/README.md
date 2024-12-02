@@ -1,41 +1,59 @@
-WeensyOS
-====================
+# Design Overview
 
-<!-- TODO: Fill this out. -->
+This document provides a conceptual design overview of the main functions implemented inside 'kernel.cc'. Below are descriptions of each major function and its implementation.
 
-**Design Overview of Functions in kernel.cc**
-The design for these functions will be listed below:
+## 'kernel()'
 
-kernel():
-For the kernel function, the main thing that we had to include was initializing our kernel page table. For this part, there were numerous conditions that were checked when I was initially initializing the kernel page table:
+The 'kernel' function's primary responsibility is initializing our kernel page table. During initialization, several conditions are checked:
 
-CONSOLE_ADDR: Through each iteration, I had to check if the virtual address was equal to the CONSOLE_ADDR. This is because if it is equal to the console address, then I set all of the permissions for the console address.
-PROC_START_ADDR: Through each iteration, I also had to check if the virtual address was inside of the kernel. The range for the kernel would be from 0 to the start of the processor addresses, which we denoted as PROC_START_ADDR. Therefore, if a virtual address fell in between this range, I made sure to not make the user-accessible permission set because we don’t want the users to potentially access the kernel information. The reason for this is because allowing users to access kernel information could lead to negative behavior and potential problems. Therefore, the kernel provides a protected boundary between user space and kernel space to prevent users from accessing kernel information directly. This is why it is so important that the user-accessible flag is not set for the kernel.
-NULL_POINTER: Then, through each iteration, if the virtual address was not the null pointer, then I knew that we would be in the user-space where I would just set all of the permissions. If the virtual address was equal to the null pointer, then I would just initialize to 0. This concludes the conceptual overview for the kernel function.
-process_setup():
-For the process_setup function, there were numerous things that I had to consider while implementing this function. This was the main overview for the function:
+- **'CONSOLE_ADDR'**: During each iteration, we verify if the virtual address equals the 'CONSOLE_ADDR'. If true, all permissions for the console address are set.
 
-First, I used kalloc() in order to allocate a new pagetable. Then, I copied the mappings from my kernel pagetable that I initialized in the previous step into this new pagetable.
-Then, for each segment of the memory, I used a loader() in order to allocate and map the rest of the memory.
-Finally, the end of the process_setup() function is left for the stack allocation. As you can see, I set the stack address to MEMSIZE_VIRTUAL - PAGESIZE where I was able to change each process's stack to grow down starting at that particular address. Therefore, through this function, we were able to copy the mappings from the kernel pagetable to a pagetable that we were able to allocate while taking into account the stack allocation as well.
-syscall_page_alloc():
-For syscall_page_alloc(), this function is in charge of the heap allocation. For this function, whenever the requested address is invalid, then the function returns -1. There are multiple cases where the requested address would be invalid. The first case is when the address that is wanting to be allocated is not divisible by the PAGESIZE. The second scenario is when the address is less than the start of the processor starting address. This is because if it was, then it would be dealing with the kernel, which is not something that we want to do. Finally, we don’t want the address to be greater than or equal to MEMSIZE_VIRTUAL, the maximum address inside of our virtual memory. If any of these three cases show up, then we would just return -1. Then, for the rest of the function, we would just map the physical page that we kalloc()ed to the virtual address that was requested for our heap allocation.
+- **'PROC_START_ADDR'**: For each iteration, we check if the virtual address is within the kernel range (0 to 'PROC_START_ADDR'). Virtual addresses in this range are not given user-accessible permissions to prevent users from accessing kernel information directly. This creates a protected boundary between user space and kernel space.
 
-syscall_fork():
-For syscall_fork(), this function handles the SYSCALL_FORK system call. The process for this function was the following:
+- **'NULL_POINTER'**: For each iteration, if the virtual address is not the null pointer, all permissions are set (user-space). If the virtual address equals the null pointer, it's initialized to 0.
 
-First, I looked for a free process slot in the ptable[] array. I didn’t use slot 0 as this slot is reserved for the kernel, which we don’t want to touch. Whenever I found a free slot, then I updated my pid variable to make sure that we keep track of the pid.
-At this specific pid slot, I would make a copy of the current’s pagetable for the child pagetable that we will eventually initialize.
-After copying the mappings, I would eventually copy the data from the parent’s pagetable into the child’s pagetable.
-Finally, I would fill in the fields for the respective proc struct using the pid variable that I initialized at the very beginning of the function. Then, I would return the pid to conclude the function definition.
-The main important thing about this function is that whenever a mapping or a kalloc() failed, I needed to make sure that everything was freed and -1 was returned properly. This was to make sure that no memory leaks would occur at the conclusion of the program, where memory leaks are definitely something that we don’t want. In order to handle memory leaks, we will have to focus on the last function that we will go over in the design overview.
+## 'process_setup()'
 
-syscall_exit():
-For syscall_exit(), this function is in charge of exiting the program. The main part of this function is actually a helper function that I called sys_call_kfree_helper() which I will walk through in detail now:
+This function handles several critical setup operations:
 
-sys_call_kfree_helper(): The main purpose of this function is to serve as a helper inside of syscall_exit() as well as syscall_fork() to reduce the amount of redundant code that I would have to write because the code is similar in different parts of the code base. First, when it comes to the implementation of this function, I first used a vmiter to free the pages in the page table. Then, I used a pitter to free the pages itself after freeing the pages inside of the pagetable.
-The reason why this helper function was useful was because in every scenario inside of syscall_fork() where a mapping failed or a kalloc() failed, I needed to make sure that I was freeing everything that I was allocating already, and the main way that I was able to incorporate this was through calling this helper function whenever a failure occurred.
+1. Initially uses 'kalloc()' to allocate a new pagetable, then copies mappings from the kernel pagetable initialized in the previous step.
 
-I was also able to call this inside of my syscall_exit() function where the only line that I added after this function call was just changing the state of our current process to P_FREE. This concludes the definition of our function. That concludes the conceptual overview of how I was able to make an exit system.
+2. Uses 'loader()' for each memory segment to allocate and map the rest of the memory.
 
+3. Concludes with stack allocation, setting the stack address to 'MEMSIZE_VIRTUAL - PAGESIZE'. This allows each process's stack to grow downward starting at that address.
 
+## 'syscall_page_alloc()'
+
+This function manages heap allocation with the following key points:
+
+- Returns -1 for invalid requested addresses
+- Invalid cases include:
+  - Address not divisible by 'PAGESIZE'
+  - Address less than processor starting address
+  - Address greater than or equal to 'MEMSIZE_VIRTUAL'
+- For valid addresses, maps the physical page using 'kalloc()' to the requested virtual address
+
+## 'syscall_fork()'
+
+This function handles the 'SYSCALL_FORK' system call with the following process:
+
+1. Searches for a free process slot in the 'ptable[]' array (excluding slot 0, which is reserved for the kernel)
+2. Upon finding a free slot, initializes 'pid' variable
+3. Creates a copy of the current's pagetable for the child pagetable
+4. Copies the mappings and data from parent's pagetable to child's pagetable
+5. Fills in the respective 'proc' struct fields using the 'pid' variable
+6. Returns 'pid' to conclude the function
+
+Important: If any mapping or 'kalloc()' fails, ensures proper cleanup and returns -1 to prevent memory leaks.
+
+## 'syscall_exit()'
+
+This function manages program termination, primarily implemented through a helper function 'sys_call_kfree_helper()':
+
+- The helper function serves both 'syscall_exit()' and 'syscall_fork()'
+- Reduces code redundancy by handling similar functionality in different parts of the codebase
+- Implementation uses:
+  - 'vmiter' to free pages in the page table
+  - 'ptiter' to free the pages themselves after freeing pages inside the pagetable
+  
+The function concludes by changing the current process state to 'P_FREE' in the 'syscall_exit()' function.
